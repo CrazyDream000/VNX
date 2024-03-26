@@ -1,0 +1,159 @@
+/**
+ * VNX Types Smart Contract
+ * Created:   17.10.2023
+ * Updated:   28.02.2024
+ * (c) Copyright by VNX S.A, Luxembourg.
+ **/
+archetype types
+
+/* STORAGE ---------------------------------------------------------------- */
+
+record Storage {
+  owner : address;
+  permits: address;
+  rbac: address;
+  token_metadata: big_map<nat, (nat * map<string, bytes>)>;
+  ledger: big_map<(address * nat), nat>;
+  operator: big_map<(address * nat * address), unit>;
+  operator_for_all: big_map<(address * address), unit>;
+  paused: bool;
+  owner_candidate: option<address>;
+  assetProtectionRole : nat;
+  contract_data: big_map<string, bytes>;
+  frozen_accounts: big_map<address, nat>;
+}
+
+/* PROXY ---------------------------------------------------------------- */
+
+record proxy_execute_param {
+  pe_entrypoint : e_entrypoints;
+  pe_sender     : address;
+  pe_params     : bytes;
+  pe_storage    : Storage
+}
+
+/* PARAMETERS ------------------------------------------------------------- */
+
+enum e_entrypoints =
+| Transfer
+| Transfer_Gasless
+| Update_Operators
+| Mint
+| Burn
+| Pause
+| UnPause
+| Set_Permits
+| Declare_Ownership
+| Claim_Ownership
+| Set_MetaData
+| Set_Asset_Protection_Role
+| Set_Token_Metadata
+| Freeze
+| Unfreeze
+
+
+// Transfer
+record transfer_destination {
+  to_dest           : address;
+  token_id_dest     : nat;
+  token_amount_dest : nat
+} as ((%to_, (token_id, amount)))
+
+record transfer_param {
+  tp_from : address;
+  tp_txs  : list<transfer_destination>;
+} as ((%from_, %txs))
+
+record gasless_param {
+  transfer_params : list<transfer_param>;
+  user_pk         : key;
+  user_sig        : signature
+}
+
+// Balance of
+record balance_of_request {
+  bo_owner : address;
+  bo_token_id : nat;
+} as ((owner, token_id))
+
+record balance_of_response {
+  request : balance_of_request;
+  balance_ : nat;
+} as ((request, balance))
+
+record balance_of_param {
+  requests : list<balance_of_request>;
+  callback : address;
+} as ((request, callback))
+
+// Update operators
+record operator_param {
+  opp_owner    : address;
+  opp_operator : address;
+  opp_token_id : nat
+} as ((owner, (operator, token_id)))
+
+enum update_op =
+| add_operator<operator_param>
+| remove_operator<operator_param>
+
+// Mint
+record mint_param {
+  mp_to           : address;
+  mp_token_id     : nat;
+  mp_token_amount : nat
+}
+
+// Burn 
+record burn_param {
+  bp_from           : address;
+  bp_token_id     : nat;
+  bp_token_amount : nat
+}
+
+// Paused 
+record pause_param {
+  p_paused : bool
+}
+//Freez
+record freez_param {
+  p_address : address
+}
+
+// Permits 
+record permits_param {
+  p_permits_addr : address
+}
+
+// Ownership
+record ownership_param {
+  p_owner_candidate: address
+}
+
+// Meta data
+record contract_data_param {
+  p_key : string;
+  p_bytes: bytes
+}
+
+// Set_Asset_Protection_Role
+record set_asset_protection_role_param {
+  p_role : nat
+}
+
+// Token_meta_data
+record token_metadata_param {
+  ftoken_metadata : nat;
+  token_id        : nat;
+  token_info      : map<string, bytes>;
+}
+
+record update_operator_param {
+  uop_k : (address * nat * address);
+  uop_diff : option<unit>;
+}
+
+record update_ledger_param {
+  ulp_k : (address * nat);
+  ulp_diff : int;
+}

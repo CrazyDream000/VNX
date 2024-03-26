@@ -1,0 +1,372 @@
+/**
+ * VNX FRT PROXY Smart Contract for Tezos (FA2)
+ * Created:   16.11.2023
+ * Updated:   28.02.2024
+ * Reference: https://github.com/completium/archetype-fa2
+ * (c) Copyright by VNX S.A, Luxembourg.
+ **/
+
+archetype frt_proxy(owner: address, implementation: address, permits: address, rbac: address, backed_by_currency: string) with metadata ""
+
+import "./types.arl"
+
+/* ERRORS ----------------------------------------------------------------- */
+constant FA2_INSUFFICIENT_BALANCE : string = "FA2_INSUFFICIENT_BALANCE"
+
+/*  STORAGE ----------------------------------------------------------------- */
+variable token_metadata: big_map<nat, (nat * map<string, bytes>)> = []
+variable ledger: big_map<(address * nat), nat> = []
+variable operator: big_map<(address * nat * address), unit> = []
+variable operator_for_all: big_map<(address * address), unit> = []
+variable paused: bool = false
+variable owner_candidate: option<address> = none
+variable assetProtectionRole: nat = 0
+variable contract_data: big_map<string, bytes> =[]
+variable frozen_accounts: big_map<address, nat> = []
+
+/* SETTINGs ---------------------------------------------------------- */
+entry set_contract(contract_address: address, contract_type: string){
+  no transfer otherwise "NO_FUND_EXPECTED"
+  called by owner
+  effect {
+    if contract_type = "rbac" then
+      rbac := contract_address;
+    
+    if contract_type = "implementation" then 
+      implementation := contract_address;
+  }
+}
+
+entry set_metadata(k: string, d: bytes) {
+  no transfer otherwise "NO_FUND_EXPECTED"
+  effect {
+    const args = build_args({
+      ep_entrypoint = types::Set_MetaData;
+      ep_params = pack (types::{
+        p_key = k;
+        p_bytes = d
+      })
+    });
+
+    transfer 0tz to implementation call default<types::proxy_execute_param>(args);
+  }
+}
+
+entry set_token_metadata (tdata: map<string, bytes>) {
+  no transfer otherwise "NO_FUND_EXPECTED"
+  effect {
+    const args = build_args({
+      ep_entrypoint = types::Set_Token_Metadata;
+      ep_params = pack (types::{
+        ftoken_metadata =0;
+        token_id = 0;
+        token_info = tdata
+      })
+    });
+
+    transfer 0tz to implementation call default<types::proxy_execute_param>(args);
+  }
+}
+
+entry set_permits(p : address) {
+  no transfer otherwise "NO_FUND_EXPECTED"
+  effect {
+    const args = build_args({
+      ep_entrypoint = types::Set_Permits;
+      ep_params = pack (types::{
+        p_permits_addr = p
+      })
+    });
+
+    transfer 0tz to implementation call default<types::proxy_execute_param>(args);
+    }
+}
+
+entry set_asset_protection_role(p: nat) {
+  no transfer otherwise "NO_FUND_EXPECTED"
+  effect {
+    const args = build_args( {
+      ep_entrypoint = types::Set_Asset_Protection_Role;
+      ep_params = pack (types::{
+        p_role = p
+      })
+    });
+    
+    transfer 0tz to implementation call default<types::proxy_execute_param>(args);
+  }
+}
+
+/* OWNERSHIP TRANSFER ------------------------------------------------------ */
+entry declare_ownership(candidate : address) {
+  no transfer otherwise "NO_FUND_EXPECTED"
+  effect {
+    const args = build_args({
+      ep_entrypoint = types::Declare_Ownership;
+      ep_params = pack (types::{
+        p_owner_candidate = candidate
+      })
+    });
+
+    transfer 0tz to implementation call default<types::proxy_execute_param>(args);
+  }
+}
+
+entry claim_ownership() {
+  no transfer otherwise "NO_FUND_EXPECTED"
+  effect {
+    const args = build_args({
+      ep_entrypoint = types::Claim_Ownership;
+      ep_params = pack (types::{
+        p_owner_candidate = caller
+      })
+    });
+
+    transfer 0tz to implementation call default<types::proxy_execute_param>(args);
+  }
+}
+
+/* FUNCTIONS --------------------------------------------------------------- */
+record exec_param {
+  ep_entrypoint : types::e_entrypoints;
+  ep_params     : bytes;
+}
+
+entry exec(p : exec_param) {
+  no transfer otherwise "NO_FUND_EXPECTED"
+  effect {
+    const args = build_args(p);
+    transfer 0tz to implementation call default<types::proxy_execute_param>(args);
+  }
+}
+
+function build_args(p : exec_param) : types::proxy_execute_param {
+  return types::{         // types::proxy_execute_param
+    pe_entrypoint = p.ep_entrypoint;
+    pe_sender = caller;
+    pe_params = p.ep_params;
+    pe_storage = types::{ // types::Storage
+      owner = owner;
+      permits = permits;
+      token_metadata = token_metadata;
+      ledger = ledger;
+      operator = operator;
+      operator_for_all = operator_for_all;
+      paused = paused;
+      owner_candidate = owner_candidate;
+      rbac = rbac;
+      assetProtectionRole = assetProtectionRole;
+      contract_data = contract_data;
+      frozen_accounts = frozen_accounts
+    }
+  }
+}
+
+/* FA2 ENTRYPOINTS ---------------------------------------------------------- */
+entry apply_storage(p : types::Storage) {
+  no transfer otherwise "NO_FUND_EXPECTED"
+  called by implementation
+  effect {
+    owner := p.owner;
+    paused := p.paused;
+    owner_candidate := p.owner_candidate;
+    assetProtectionRole := p.assetProtectionRole;
+    permits := p.permits;
+    metadata := p.contract_data;
+    frozen_accounts:= p.frozen_accounts;
+  }
+}
+
+entry update_metadata(k: string, d : bytes) {
+  no transfer
+  called by implementation
+  effect {
+    metadata := update(metadata, k, some(d))
+  }
+}
+
+entry update_token_metadata(k : nat, v: option<(nat * map<string, bytes>)>) {
+  no transfer
+  called by implementation
+  effect {
+    match v with
+    | some(value) -> token_metadata := update(token_metadata, k, some(value))
+    | none        -> token_metadata := remove(token_metadata, k)
+    end
+  }
+}
+
+entry update_ledger(updates : list<types::update_ledger_param>) {
+  no transfer
+  called by implementation
+  effect {
+    for up in updates do
+      const balance_ ?= self.get_ledger(up.ulp_k) : 0;
+      const new_amount ?= int_to_nat(balance_ + up.ulp_diff) : FA2_INSUFFICIENT_BALANCE;
+      if new_amount = 0 then
+        ledger := remove(ledger, up.ulp_k)
+      else begin
+        ledger := update(ledger, up.ulp_k, some(new_amount));
+      end;
+    done
+  }
+}
+
+entry update_operator(updates: list<types::update_operator_param>) {
+  no transfer
+  called by implementation
+  effect {
+    for up in updates do
+      match up.uop_diff with
+      | some(value) -> operator := update(operator, up.uop_k, some(value))
+      | none        -> operator := remove(operator, up.uop_k)
+      end
+    done
+  }
+}
+
+entry update_operators (upl : list<types::update_op>) {
+  no transfer otherwise "NO_FUND_EXPECTED"
+  effect {
+    const args = build_args({
+      ep_entrypoint = types::Update_Operators;
+      ep_params = pack(upl)
+    });
+
+    transfer 0tz to implementation call default<types::proxy_execute_param>(args);
+  }
+}
+
+entry %transfer (txs : list<types::transfer_param>) {
+  no transfer otherwise "NO_FUND_EXPECTED"
+  effect {
+   const args = build_args({
+      ep_entrypoint = types::Transfer;
+      ep_params = pack(txs)
+    });
+
+    transfer 0tz to implementation call default<types::proxy_execute_param>(args);
+  }
+}
+
+entry transfer_gasless (batch : list<types::gasless_param>) {
+  no transfer otherwise "NO_FUND_EXPECTED"
+  effect {
+    const args = build_args({
+      ep_entrypoint = types::Transfer_Gasless;
+      ep_params = pack(batch)
+    });
+
+    transfer 0tz to implementation call default<types::proxy_execute_param>(args);
+  }
+}
+
+entry mint (tow : address, nbt : nat) {
+  no transfer otherwise "NO_FUND_EXPECTED"
+  effect {
+    const args = build_args({
+      ep_entrypoint = types::Mint;
+      ep_params = pack (types::{
+       mp_to = tow;
+       mp_token_id = 0;
+       mp_token_amount = nbt
+      })
+    });
+
+    transfer 0tz to implementation call default<types::proxy_execute_param>(args);
+  }
+}
+
+entry burn (tow : address, nbt : nat) {
+  no transfer otherwise "NO_FUND_EXPECTED"
+  effect {
+    const args = build_args({
+      ep_entrypoint = types::Burn;
+      ep_params = pack (types::{
+       bp_from = tow;
+       bp_token_id = 0;
+       bp_token_amount = nbt
+      })
+    });
+
+    transfer 0tz to implementation call default<types::proxy_execute_param>(args);
+  }
+}
+
+entry pause() {
+  no transfer otherwise "NO_FUND_EXPECTED"
+  effect {
+    const args = build_args({
+      ep_entrypoint = types::Pause;
+      ep_params = pack (types::{
+        p_paused = true
+      })
+    });
+
+    transfer 0tz to implementation call default<types::proxy_execute_param>(args);
+  }
+}
+
+entry unpause() {
+  no transfer otherwise "NO_FUND_EXPECTED"
+  effect {
+    const args = build_args({
+      ep_entrypoint = types::UnPause;
+      ep_params = pack (types::{
+        p_paused = false
+      })
+    });
+
+    transfer 0tz to implementation call default<types::proxy_execute_param>(args);
+  }
+}
+
+
+entry freeze(userAddress: address) {
+  no transfer otherwise "NO_FUND_EXPECTED"
+  effect {
+     const args = build_args({
+      ep_entrypoint = types::Freeze;
+      ep_params = pack (types::{
+        p_address = userAddress
+      })  
+    });
+    transfer 0tz to implementation call default<types::proxy_execute_param>(args);
+  }
+}
+
+entry unfreeze(userAddress: address) {
+  no transfer otherwise "NO_FUND_EXPECTED"
+  effect {
+    const args = build_args({
+      ep_entrypoint = types::Unfreeze;
+      ep_params = pack (types::{
+        p_address = userAddress
+      })  
+    });
+    transfer 0tz to implementation call default<types::proxy_execute_param>(args);
+  }
+}
+
+/* Getter / View ---------------------------------------------------------- */
+getter balance_of (requests : list<types::balance_of_request>) : list<types::balance_of_response> {
+  return map(requests, br ->
+    let b =
+      if (not contains(token_metadata, br.bo_token_id)) then 0
+      else (ledger[(br.bo_owner,br.bo_token_id)] ? the : 0) in
+    types::{
+      request = br;
+      balance_ = b
+    })
+}
+
+view get_token_metadata(k: nat) : option<nat * map<string, bytes>> {
+  return token_metadata[k]
+}
+
+view get_ledger(k: (address * nat)) : nat {
+  return
+    match ledger[k] with
+    | some(value) -> value
+    | none        -> 0
+    end
+}

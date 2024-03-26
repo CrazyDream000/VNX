@@ -1,0 +1,9 @@
+{
+  "name": "VNX Fiat Stablecoin Contract",
+  "description": "VNX Fiat Stablecoin FA2 token contract",
+  "version": "1.0",
+  "license": { "name": "MIT" },
+  "authors": ["VNX <info@vnx.io>"],
+  "homepage": "https://vnx.li",
+  "interfaces": ["TZIP-012", "TZIP-016", "TZIP-017", "TZIP-021"]
+}

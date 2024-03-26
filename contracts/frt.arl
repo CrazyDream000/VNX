@@ -1,0 +1,421 @@
+/**
+ * VNX FRT Smart Contract for Tezos (FA2)
+ * Created:   16.11.2023
+ * Updated:   28.02.2024
+ * (c) Copyright by VNX S.A, Luxembourg.
+ **/
+
+archetype frt(owner: address)
+
+import "./types.arl"
+import "./frt_proxy.arl"
+
+/* ERRORS ----------------------------------------------------------------- */
+
+constant FA2_INSUFFICIENT_BALANCE : string = "FA2_INSUFFICIENT_BALANCE"
+constant FA2_INVALID_AMOUNT       : string = "FA2_INVALID_AMOUNT"
+constant FA2_NOT_OPERATOR         : string = "FA2_NOT_OPERATOR"
+constant FA2_NOT_OWNER            : string = "FA2_NOT_OWNER"
+constant FA2_TOKEN_UNDEFINED      : string = "FA2_TOKEN_UNDEFINED"
+constant SIGNER_NOT_FROM          : string = "SIGNER_NOT_FROM"
+constant INVALID_CALLER           : string = "INVALID_CALLER"
+constant CONTRACT_PAUSED          : string = "CONTRACT_PAUSED"
+constant CONTRACT_NOT_PAUSED      : string = "CONTRACT_NOT_PAUSED"
+constant FROZEN_ACCOUNT           : string = "FROZEN_ACCOUNT"
+
+/* FUNCTIONS --------------------------------------------------------------- */
+function not_frozen(addr: address, s: types::Storage) : bool {
+    return (not contains(s.frozen_accounts, addr))
+}
+
+function check_owner(addr: address, txs: list<types::transfer_param>) : bool {
+  var res = true;
+  for tx in txs do
+    res &= addr = tx.tp_from
+  done;
+  return res
+}
+
+function check_operator(sender: address, txs: list<types::transfer_param>, s: types::Storage) : bool {
+  var res = true;
+  for tx in txs do
+    const %from = tx.tp_from;
+    const tds = tx.tp_txs;
+    for td in tds do begin
+      res &=
+        if sender <> %from then
+          (contains(s.operator, (sender, td.token_id_dest, %from)) or
+           contains(s.operator_for_all, (sender, %from)))
+        else
+          true;
+    end
+    done
+  done;
+  return res
+}
+
+function get_from(txs: list<types::transfer_param>, s: types::Storage) : option<address> {
+  match txs with
+  | hd::tl -> begin
+    const %from = hd.tp_from;
+    for tx in tl do
+      do_require(%from = tx.tp_from, FA2_NOT_OPERATOR);
+    done;
+    return some(%from)
+  end
+  | [] -> return none
+  end
+}
+
+// Check the role of transaction sender by calling RBAC contract
+function check_role(addr: address, s: types::Storage): bool {
+    const r ?= call_view<bool>(s.rbac, "hasRole", (addr, s.assetProtectionRole));
+    return r
+}
+
+// Send big_map updates to proxy
+function apply_metadata(k : string, v : bytes, proxy_address: address) {
+  transfer 0tz to entry frt_proxy(proxy_address).update_metadata((k, v))
+}
+
+function apply_token_metadata(k : nat, v : nat * map<string, bytes>, proxy_address: address) {
+  transfer 0tz to entry frt_proxy(proxy_address).update_token_metadata((k, some(v)))
+}
+
+function apply_ledger(updates: list<((address * nat) * int)>, proxy_address: address) {
+  transfer 0tz to entry frt_proxy(proxy_address).update_ledger(updates.reverse())
+}
+
+function apply_operator(updates: list<(address * nat * address) * option<unit>>, proxy_address: address) {
+  transfer 0tz to entry frt_proxy(proxy_address).update_operator(updates.reverse())
+}
+
+/* FA2 ENTRYPOINTS ----------------------------------------------------------- */
+entry do_transfer(txs: list<types::transfer_param>, s: types::Storage, proxy_address: address) {
+  no transfer otherwise "NO_FUND_EXPECTED"
+  called by self_address
+  effect {
+    var diff : list<((address * nat) * int)> = [];
+    for tx in txs do
+      const %from = tx.tp_from;
+      const tds   = tx.tp_txs;
+      do_require(not_frozen(%from, s), FROZEN_ACCOUNT);
+      for td in tds do begin
+        const tid = td.token_id_dest;
+        do_require(contains(s.token_metadata, tid), FA2_TOKEN_UNDEFINED);
+        do_require(not_frozen(td.to_dest, s), FROZEN_ACCOUNT);
+        const token_amount_dest: int = td.token_amount_dest;
+        diff := prepend(diff, ((%from, tid), -token_amount_dest));
+        diff := prepend(diff, ((td.to_dest, tid), token_amount_dest));
+      end done
+    done;
+
+    apply_ledger(diff, proxy_address)
+  }
+}
+
+entry %transfer (sender: address, p: list<types::transfer_param>, s: types::Storage, proxy_address: address) {
+  no transfer otherwise "NO_FUND_EXPECTED"
+  called by self_address
+  require {
+    trans_r1: not s.paused otherwise CONTRACT_PAUSED;
+    trans_r2: not_frozen(sender, s) otherwise FROZEN_ACCOUNT;
+  }
+  effect {
+    if not check_operator(sender, p, s) then begin
+      match get_from(p, s) with
+      | some(%from) ->
+        transfer 0tz to s.permits
+          call consume<address * bytes * string>((%from, blake2b(pack(p)), FA2_NOT_OPERATOR))
+      | none -> ()
+      end
+    end;
+
+    transfer 0tz to entry self.do_transfer(p, s, proxy_address);
+  }
+}
+
+entry update_operators (sender: address, p: list<types::update_op>, s: types::Storage, proxy_address: address) {
+  no transfer otherwise "NO_FUND_EXPECTED"
+  called by self_address
+  require {
+    uo_r1: not s.paused otherwise CONTRACT_PAUSED;
+  }
+  effect {
+    var diff : list<((address * nat * address) * option<unit>)> = [];
+
+    for up in p do
+      match up with
+      | add_operator(param) -> (* add *)
+        do_require(param.opp_owner = sender , FA2_NOT_OWNER);
+        const k = (param.opp_operator, param.opp_token_id, param.opp_owner);
+        diff := prepend(diff, ((k, some(Unit))))
+      | remove_operator(param) -> (* remove *)
+        do_require(param.opp_owner = sender , FA2_NOT_OWNER);
+        const k = (param.opp_operator, param.opp_token_id, param.opp_owner);
+        diff := prepend(diff, ((k, none<unit>)))
+      end;
+    done;
+
+    apply_operator(diff, proxy_address)
+  }
+}
+
+/* OTHER ENTRYPOINTS --------------------------------------------------------- */
+entry mint (sender: address, p: types::mint_param, s: types::Storage, proxy_address: address) {
+  no transfer otherwise "NO_FUND_EXPECTED"
+  called by self_address
+  require {
+    m_r1: not s.paused otherwise CONTRACT_PAUSED;
+    m_r2: check_role(sender, s) otherwise INVALID_CALLER;
+    m_r3: not_frozen(p.mp_to, s) otherwise FROZEN_ACCOUNT;
+  }
+  effect {
+    if not contains(s.token_metadata, (p.mp_token_id)) then begin
+      const meta = ((p.mp_token_id, make_map<string, bytes>([])));
+      apply_token_metadata(p.mp_token_id, meta, proxy_address)
+    end;
+    apply_ledger([((p.mp_to, p.mp_token_id), p.mp_token_amount)], proxy_address)
+  }
+}
+
+entry burn (sender: address, p: types::burn_param, s: types::Storage, proxy_address: address) {
+  no transfer otherwise "NO_FUND_EXPECTED"
+  called by self_address
+  constant {
+    amount ?is s.ledger[(p.bp_from, p.bp_token_id)] otherwise FA2_INSUFFICIENT_BALANCE
+  }
+  require {
+    b_r1: check_role(sender, s) otherwise INVALID_CALLER;
+    b_r2: not s.paused otherwise CONTRACT_PAUSED;
+    b_r3: contains(s.token_metadata, (p.bp_token_id)) otherwise FA2_TOKEN_UNDEFINED;
+    b_r4: (amount >= p.bp_token_amount) otherwise FA2_INSUFFICIENT_BALANCE ;
+    b_r5: not_frozen(p.bp_from, s) otherwise FROZEN_ACCOUNT;
+  }
+  effect {
+    if(amount > p.bp_token_amount) then begin
+        apply_ledger([((p.bp_from, p.bp_token_id), -p.bp_token_amount)], proxy_address);
+    end
+    else 
+      apply_ledger([((p.bp_from, p.bp_token_id), -amount)], proxy_address);
+  }
+}
+
+entry pause(sender: address, p: types::pause_param, s: types::Storage, proxy_address: address ) {
+  no transfer otherwise "NO_FUND_EXPECTED"
+  called by self_address
+  require {
+    pausable_r1: not s.paused otherwise CONTRACT_PAUSED;
+    pausable_r2: check_role(sender, s) otherwise INVALID_CALLER;
+  }
+  effect {
+    s.paused := p.p_paused;
+    transfer 0tz to proxy_address call apply_storage<types::Storage>(s)
+  }
+}
+
+entry unpause(sender: address, p: types::pause_param, s: types::Storage, proxy_address: address ) {
+  no transfer otherwise "NO_FUND_EXPECTED"
+  called by self_address
+  require {
+    unpausable_r1 : s.paused otherwise CONTRACT_NOT_PAUSED;
+    unpausable_r2 : check_role(sender, s) otherwise INVALID_CALLER;
+  }
+  effect {
+    s.paused := p.p_paused;
+    transfer 0tz to proxy_address call apply_storage<types::Storage>(s)
+  }
+}
+
+entry transfer_gasless(p: list<types::gasless_param>, s: types::Storage, proxy_address: address) {
+  no transfer otherwise "NO_FUND_EXPECTED"
+  called by self_address
+  require {
+    t_r2: not s.paused otherwise CONTRACT_PAUSED;
+  }
+  effect {
+    for b in p do 
+      const txs = b.transfer_params;
+      const pk  = b.user_pk;
+      const sig = b.user_sig;
+      const pkh_signer = key_to_address(pk);
+      do_require(check_owner(pkh_signer, txs), SIGNER_NOT_FROM);
+      do_require(not_frozen(pkh_signer, s), FROZEN_ACCOUNT);
+
+      transfer 0tz to s.permits
+        call check<key * signature * bytes>((pk, sig, blake2b(pack(txs))));
+      transfer 0tz to entry self.do_transfer(txs, s, proxy_address);
+    done
+  }
+}
+
+entry set_permits(sender: address, p: types::permits_param, s: types::Storage, proxy_address: address) {
+  no transfer otherwise "NO_FUND_EXPECTED"
+  called by self_address
+  require { 
+    sp_r1: not s.paused otherwise CONTRACT_PAUSED;
+    sp_r2: check_role(sender, s) otherwise INVALID_CALLER;    
+    sp_r3: not_frozen(sender, s) otherwise FROZEN_ACCOUNT;
+  }
+  effect {
+    s.permits := p.p_permits_addr;
+
+    transfer 0tz to proxy_address call apply_storage<types::Storage>(s)
+  }
+}
+
+entry declare_ownership(sender: address, p: types::ownership_param, s: types::Storage, proxy_address: address) {
+  no transfer otherwise "NO_FUND_EXPECTED"
+  called by self_address
+  require {
+    ownership_r1: check_role(sender, s) otherwise INVALID_CALLER;
+  }
+  effect {
+    s.owner_candidate := some(p.p_owner_candidate) ;
+    transfer 0tz to proxy_address call apply_storage<types::Storage>(s)
+  }
+}
+
+entry claim_ownership(sender: address, p: types::ownership_param, s: types::Storage, proxy_address: address) {
+  no transfer otherwise "NO_FUND_EXPECTED"
+  called by self_address
+  require {
+    claimownership_r1: (s.owner_candidate ? the = p.p_owner_candidate : false) otherwise INVALID_CALLER;
+    claimownership_r2: check_role(sender, s) otherwise INVALID_CALLER;
+  }
+  effect {
+    s.owner := sender;
+    s.owner_candidate := none;
+    transfer 0tz to proxy_address call apply_storage<types::Storage>(s)
+  }
+}
+
+entry set_metadata(sender: address, p: types::contract_data_param, s: types::Storage, proxy_address: address) {
+  no transfer otherwise "NO_FUND_EXPECTED"
+  called by self_address
+  require {
+    setmetadata_r1: check_role(sender, s) otherwise INVALID_CALLER;
+    setmetadata_r2: not s.paused otherwise CONTRACT_PAUSED;
+  }
+  effect{
+    apply_metadata(p.p_key, p.p_bytes, proxy_address);
+  }
+}
+
+entry set_asset_protection_role(sender: address, p: types::set_asset_protection_role_param, s: types::Storage, proxy_address: address){
+  no transfer otherwise "NO_FUND_EXPECTED"
+  called by self_address
+  require {
+    setrole_r1 : check_role(sender, s) otherwise INVALID_CALLER;
+  }
+  effect {
+    s.assetProtectionRole := p.p_role;
+    transfer 0tz to proxy_address call apply_storage<types::Storage>(s)
+  }
+}
+
+entry set_token_metadata(sender: address, p: types::token_metadata_param, s: types::Storage, proxy_address: address){
+  no transfer otherwise "NO_FUND_EXPECTED"
+  called by self_address
+  require {
+    settokenrole_r1: check_role(sender, s) otherwise INVALID_CALLER;
+  }
+  effect {
+    const meta = ((p.token_id, p.token_info));
+    apply_token_metadata(p.token_id, meta, proxy_address);
+  }
+}
+
+entry freeze(sender: address, p: types::freez_param, s: types::Storage, proxy_address: address){
+  no transfer otherwise "NO_FUND_EXPECTED"
+  called by self_address
+  require {
+    freeze_r1: check_role(sender, s) otherwise INVALID_CALLER;
+    freeze_r2: not_frozen(p.p_address, s) otherwise FROZEN_ACCOUNT;
+  }
+  effect {
+    s.frozen_accounts.put(p.p_address, 1);
+    transfer 0tz to proxy_address call apply_storage<types::Storage>(s)
+  }
+}
+
+entry unfreeze(sender: address, p: types::freez_param, s: types::Storage, proxy_address: address){
+  no transfer otherwise "NO_FUND_EXPECTED"
+  called by self_address
+  require {
+    unfreez_r1: check_role(sender, s) otherwise INVALID_CALLER;
+  }
+  effect {
+    s.frozen_accounts.remove(p.p_address);
+    transfer 0tz to proxy_address call apply_storage<types::Storage>(s)
+  }
+}
+
+/* DEFAULT ENTRYPOINT ---------------------------------------------------------- */
+entry default (p: types::proxy_execute_param) {
+  effect {
+    const caller_proxy = caller;
+    match p.pe_entrypoint with
+    | Transfer -> begin
+        const transfer_param ?= unpack<list<types::transfer_param>>(p.pe_params): "UNPACK_FAILED: transfer params";
+        transfer transferred to entry self.%transfer(p.pe_sender, transfer_param, p.pe_storage, caller_proxy)
+      end
+    | Transfer_Gasless -> begin
+        const gasless_param ?= unpack<list<types::gasless_param>>(p.pe_params): "UNPACK_FAILED: transfer_gasless params";
+        transfer transferred to entry self.%transfer_gasless(gasless_param, p.pe_storage, caller_proxy)
+      end
+    | Update_Operators -> begin
+        const update_operators_param ?= unpack<list<types::update_op>>(p.pe_params): "UNPACK_FAILED: update_operators params";
+        transfer transferred to entry self.update_operators(p.pe_sender, update_operators_param, p.pe_storage, caller_proxy)
+      end
+    | Mint -> begin
+        const mint_param ?= unpack<types::mint_param>(p.pe_params): "UNPACK_FAILED: mint params";
+        transfer transferred to entry self.mint(p.pe_sender, mint_param, p.pe_storage, caller_proxy)
+      end
+    | Burn -> begin
+        const burn_param ?= unpack<types::burn_param>(p.pe_params): "UNPACK_FAILED: burn params";
+        transfer transferred to entry self.burn(p.pe_sender, burn_param, p.pe_storage, caller_proxy)
+      end 
+    | Pause -> begin
+        const pause_param ?= unpack<types::pause_param>(p.pe_params): "UNPACK_FAILED: pause params";
+        transfer transferred to entry self.pause(p.pe_sender, pause_param, p.pe_storage, caller_proxy)
+      end
+    | UnPause -> begin
+        const UnPause_param ?= unpack<types::pause_param>(p.pe_params): "UNPACK_FAILED: unpause params";
+        transfer transferred to entry self.unpause(p.pe_sender, UnPause_param, p.pe_storage, caller_proxy)
+      end
+    | Set_Permits -> begin
+        const permits_param ?= unpack<types::permits_param>(p.pe_params): "UNPACK_FAILED: set_permits params";
+        transfer transferred to entry self.set_permits(p.pe_sender, permits_param, p.pe_storage, caller_proxy)
+      end
+    | Declare_Ownership -> begin
+        const ownership_param ?= unpack<types::ownership_param>(p.pe_params): "UNPACK_FAILED: declare_ownership params";
+        transfer transferred to entry self.declare_ownership(p.pe_sender, ownership_param, p.pe_storage, caller_proxy)
+      end
+    | Claim_Ownership -> begin
+        const ownership_param ?= unpack<types::ownership_param>(p.pe_params): "UNPACK_FAILED: claim_ownership params";
+        transfer transferred to entry self.claim_ownership(p.pe_sender, ownership_param, p.pe_storage, caller_proxy)
+      end
+    | Set_MetaData -> begin
+        const contract_data_param ?= unpack<types::contract_data_param>(p.pe_params): "UNPACK_FAILED: metadata params";
+        transfer transferred to entry self.set_metadata(p.pe_sender, contract_data_param, p.pe_storage, caller_proxy)
+      end
+    | Set_Asset_Protection_Role -> begin
+      const set_asset_protection_role_param ?= unpack<types::set_asset_protection_role_param>(p.pe_params): "UNPACK_FAILED: Invalid params";
+      transfer transferred to entry self.set_asset_protection_role(p.pe_sender, set_asset_protection_role_param, p.pe_storage, caller_proxy)
+    end
+    | Set_Token_Metadata -> begin
+      const token_metadata_param ?= unpack<types::token_metadata_param>(p.pe_params): "UNPACK_FAILED: token_metadata params";
+      transfer transferred to entry self.set_token_metadata(p.pe_sender, token_metadata_param, p.pe_storage, caller_proxy)
+    end
+    | Freeze -> begin
+        const freeze_param ?= unpack<types::freez_param>(p.pe_params): "UNPACK_FAILED: freez params";
+        transfer transferred to entry self.freeze(p.pe_sender, freeze_param, p.pe_storage, caller_proxy)
+    end
+    | Unfreeze -> begin
+        const freeze_param ?= unpack<types::freez_param>(p.pe_params): "UNPACK_FAILED: unfreez params";
+        transfer transferred to entry self.unfreeze(p.pe_sender, freeze_param, p.pe_storage, caller_proxy)
+    end
+    end
+  }
+}

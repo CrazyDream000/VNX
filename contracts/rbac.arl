@@ -1,0 +1,139 @@
+/**
+ * VNX RBAC Smart Contract for Tezos
+ * Created:   30.09.2023
+ * Updated:   13.03.2024
+ * (c) Copyright by VNX S.A, Luxembourg.
+ **/
+
+archetype rbac (owner: address)
+
+/* ERRORS ------------------------------------------------------------------ */
+constant INVALID_CALLER             : string = "INVALID_CALLER"
+constant ROLE_NOT_EXIST             : string = "ROLE_NOT_EXIST"
+constant ROLE_EXIST                 : string = "ROLE_EXIST"
+constant BEARER_DOES_NOT_HOLD_ROLE  : string = "BEARER_DOES_NOT_HOLD_ROLE"
+constant BEARER_HOLDS_ROLE          : string = "BEARER_HOLDS_ROLE"
+constant MAX_BEARERS_MSG            : string = "Maximum bearers count has been reached"
+constant MAX_ROLES_MSG              : string = "Maximum roles count has been reached"                
+constant MAX_ROLES                  : int = 100
+constant MAX_BEARERS                : int = 100
+
+
+/* OWNERSHIP TRANSFER ------------------------------------------------------- */
+variable owner_candidate : option<address> = none
+variable roles_tracker : int = 0
+variable bearers_tracker : int = 0
+
+entry declare_ownership(candidate : address) {
+  no transfer otherwise "NO_FUND_EXPECTED"
+  called by owner
+  effect {
+    owner_candidate := some(candidate);
+  }
+}
+
+entry claim_ownership() {
+  no transfer otherwise "NO_FUND_EXPECTED"
+  require {
+    ownership_r1: (owner_candidate ? the = caller : false) otherwise INVALID_CALLER
+  }
+  effect {
+    owner := caller;
+    owner_candidate := none
+  }
+}
+
+/* ASSET ------------------------------------------------------- */
+  // Big_Map to store roles and bearers. it initialized with superadmin role (0) for the owner
+  variable user_roles: big_map<(address * nat), nat> = [((owner,0), 1)]
+  variable bearers: iterable_big_map<address, nat> = [(owner,1)]
+  variable roles : iterable_big_map<nat, nat> = [(0,1)]
+
+/* FUNCTIONS ------------------------------------------------------- */
+function userRolesCount(userAddress: address) : nat {
+  var count: nat = 0;
+  for (r,v) in roles do 
+    begin
+      if contains(user_roles, (userAddress,r))  then
+      count := count + 1
+    end
+  done;
+  return count
+}
+/* ROLES ------------------------------------------------------- */
+
+  // Add role (only accessible by owner)
+  entry addRole(roleId: nat) {
+    no transfer otherwise "NO_FUND_EXPECTED"
+    called by owner
+    require {
+      r0: not(contains(roles, roleId)) otherwise ROLE_EXIST;
+      r1: roles_tracker < MAX_ROLES otherwise MAX_ROLES_MSG
+    }
+    effect
+    {
+      roles.put(roleId, 1);
+      roles_tracker := roles_tracker + 1;
+    }
+  }
+
+  // Remove a role (only accessible by owner)
+  entry removeRole(roleId: nat) {
+    no transfer otherwise "NO_FUND_EXPECTED"
+    called by owner
+    require {
+      r2: contains(roles, roleId) otherwise ROLE_NOT_EXIST
+    }
+    effect {    
+      for (e,v)in bearers do 
+        user_roles := remove(user_roles,(e, roleId));
+      done;
+      roles.remove(roleId);
+      roles_tracker := roles_tracker - 1;
+    }
+  }
+
+  // View to check if a user has a specific role
+  view hasRole(userAddress: address, role: nat) : bool { 
+    do_require(contains(roles, role), ROLE_NOT_EXIST);
+    return (user_roles[(userAddress, role)] = some(1) ? true : false)
+  }
+
+/* BEARER ------------------------------------------------------- */
+
+  // Add Bearer (only accessible by owner)
+  entry addBearer(userAddress: address, userRole: nat) {
+    no transfer otherwise "NO_FUND_EXPECTED"
+    called by owner 
+    require {
+      r3: contains(roles, userRole) otherwise ROLE_NOT_EXIST;
+      r4: bearers_tracker < MAX_BEARERS otherwise MAX_BEARERS_MSG;
+      r5: not contains(user_roles, (userAddress, userRole)) otherwise BEARER_HOLDS_ROLE
+    }
+    effect {
+      user_roles.put((userAddress, userRole), 1);
+      bearers.put(userAddress, 1);
+      var counter = userRolesCount(userAddress);
+      if counter = 1 then 
+        bearers_tracker := bearers_tracker + 1
+    }
+  }
+
+  // Remove Bearer (only accessible by owner)
+  entry removeBearer(userAddress: address, userRole: nat) {
+    no transfer otherwise "NO_FUND_EXPECTED"
+    called by owner 
+    require {
+      r6: contains(roles, userRole) otherwise ROLE_NOT_EXIST;
+      r7: contains (user_roles, (userAddress, userRole)) otherwise BEARER_DOES_NOT_HOLD_ROLE;
+      }
+    effect {
+      user_roles := remove(user_roles,(userAddress, userRole));
+      var counter = userRolesCount(userAddress);
+      if counter = 0 then
+        begin
+          bearers.remove(userAddress);
+          bearers_tracker := bearers_tracker - 1
+        end
+    }
+  }

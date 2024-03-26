@@ -1,0 +1,10 @@
+{
+  "symbol": "VNXAU",
+  "name": "VNX GOLD",
+  "decimals": 18,
+  "description": "VNXAU is a multichain token backed by pure physical gold which represents individual ownership of the actual gold that is stored in a high-security vault in Liechtenstein. The operations with tokens are carried out by a company registered under TVTG by the Liechtenstein Financial Market Authority.",
+  "thumbnailUri": "https://ipfs.io/ipfs/Qmdtg7urymiLJSGn4FiYnxv9Strdg26T3qF8KRdBUSP88G/vnxau256x256.png",
+  "isTransferable": true,
+  "isBooleanAmount": false
+}
+

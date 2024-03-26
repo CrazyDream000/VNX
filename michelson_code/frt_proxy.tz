@@ -1,0 +1,1590 @@
+{ storage
+    (pair (address %owner)
+          (address %implementation)
+          (address %permits)
+          (address %rbac)
+          (string %backed_by_currency)
+          (big_map %token_metadata nat (pair nat (map string bytes)))
+          (big_map %ledger (pair address nat) nat)
+          (big_map %operator (pair address nat address) unit)
+          (big_map %operator_for_all (pair address address) unit)
+          (bool %paused)
+          (option %owner_candidate address)
+          (nat %assetProtectionRole)
+          (big_map %contract_data string bytes)
+          (big_map %frozen_accounts address nat)
+          (big_map %metadata string bytes)) ;
+  parameter
+    (or (or (or (or (or (pair %balance_of
+                           (list %requests (pair (address %owner) (nat %token_id)))
+                           (contract %callback
+                              (list (pair (pair %request (address %owner) (nat %token_id)) (nat %balance)))))
+                        (pair %set_contract (address %contract_address) (string %contract_type)))
+                    (or (pair %set_metadata (string %k) (bytes %d))
+                        (map %set_token_metadata string bytes)))
+                (or (or (address %set_permits) (nat %set_asset_protection_role))
+                    (or (address %declare_ownership) (unit %claim_ownership))))
+            (or (or (or (pair %exec (int %ep_entrypoint) (bytes %ep_params))
+                        (pair %apply_storage
+                           (address %owner)
+                           (address %permits)
+                           (address %rbac)
+                           (big_map %token_metadata nat (pair nat (map string bytes)))
+                           (big_map %ledger (pair address nat) nat)
+                           (big_map %operator (pair address nat address) unit)
+                           (big_map %operator_for_all (pair address address) unit)
+                           (bool %paused)
+                           (option %owner_candidate address)
+                           (nat %assetProtectionRole)
+                           (big_map %contract_data string bytes)
+                           (big_map %frozen_accounts address nat)))
+                    (or (pair %update_metadata (string %k) (bytes %d))
+                        (pair %update_token_metadata (nat %k) (option %v (pair nat (map string bytes))))))
+                (or (or (list %update_ledger (pair (pair %ulp_k address nat) (int %ulp_diff)))
+                        (list %update_operator
+                           (pair (pair %uop_k address nat address) (option %uop_diff unit))))
+                    (or (list %update_operators
+                           (or (pair %add_operator (address %owner) (pair (address %operator) (nat %token_id)))
+                               (pair %remove_operator (address %owner) (pair (address %operator) (nat %token_id)))))
+                        (list %transfer
+                           (pair (address %from_)
+                                 (list %txs (pair (address %to_) (pair (nat %token_id) (nat %amount))))))))))
+        (or (or (or (list %transfer_gasless
+                       (pair (list %transfer_params
+                                (pair (address %from_)
+                                      (list %txs (pair (address %to_) (pair (nat %token_id) (nat %amount))))))
+                             (key %user_pk)
+                             (signature %user_sig)))
+                    (pair %mint (address %tow) (nat %nbt)))
+                (or (pair %burn (address %tow) (nat %nbt)) (unit %pause)))
+            (or (or (unit %unpause) (address %freeze)) (address %unfreeze)))) ;
+  code { LAMBDA
+           (pair (big_map address nat)
+                 (big_map string bytes)
+                 nat
+                 (option address)
+                 bool
+                 (big_map (pair address address) unit)
+                 (big_map (pair address nat address) unit)
+                 (big_map (pair address nat) nat)
+                 (big_map nat (pair nat (map string bytes)))
+                 address
+                 address
+                 address
+                 (pair (int %ep_entrypoint) (bytes %ep_params)))
+           (pair (int %pe_entrypoint)
+                 (address %pe_sender)
+                 (bytes %pe_params)
+                 (pair %pe_storage
+                    (address %owner)
+                    (address %permits)
+                    (address %rbac)
+                    (big_map %token_metadata nat (pair nat (map string bytes)))
+                    (big_map %ledger (pair address nat) nat)
+                    (big_map %operator (pair address nat address) unit)
+                    (big_map %operator_for_all (pair address address) unit)
+                    (bool %paused)
+                    (option %owner_candidate address)
+                    (nat %assetProtectionRole)
+                    (big_map %contract_data string bytes)
+                    (big_map %frozen_accounts address nat)))
+           { UNPAIR 13 ;
+             PUSH unit Unit ;
+             DUP 2 ;
+             DUP 4 ;
+             PAIR ;
+             DUP 5 ;
+             PAIR ;
+             DUP 6 ;
+             PAIR ;
+             DUP 7 ;
+             PAIR ;
+             DUP 8 ;
+             PAIR ;
+             DUP 9 ;
+             PAIR ;
+             DUP 10 ;
+             PAIR ;
+             DUP 11 ;
+             PAIR ;
+             DUP 12 ;
+             PAIR ;
+             DUP 13 ;
+             PAIR ;
+             DUP 14 ;
+             PAIR ;
+             DUP 15 ;
+             GET 2 ;
+             PAIR ;
+             SENDER ;
+             PAIR ;
+             DUP 15 ;
+             GET 1 ;
+             PAIR ;
+             SWAP ;
+             DROP 1 ;
+             DUG 13 ;
+             DROP 13 } ;
+         NIL operation ;
+         DIG 2 ;
+         UNPAIR ;
+         DIP 1 { UNPAIR 15 } ;
+         IF_LEFT
+           { IF_LEFT
+               { IF_LEFT
+                   { IF_LEFT
+                       { IF_LEFT
+                           { UNPAIR ;
+                             NIL operation ;
+                             NIL operation ;
+                             DUP 20 ;
+                             ITER { CONS } ;
+                             DUP 4 ;
+                             AMOUNT ;
+                             DUP 5 ;
+                             MAP { DUP 13 ;
+                                   DUP 2 ;
+                                   GET 2 ;
+                                   MEM ;
+                                   NOT ;
+                                   IF { PUSH nat 0 }
+                                      { DUP 14 ;
+                                        DUP 2 ;
+                                        GET 2 ;
+                                        DUP 3 ;
+                                        GET 1 ;
+                                        PAIR ;
+                                        GET ;
+                                        IF_NONE { PUSH nat 0 } {} } ;
+                                   DUP ;
+                                   DUP 3 ;
+                                   PAIR ;
+                                   SWAP ;
+                                   DROP 1 ;
+                                   SWAP ;
+                                   DROP 1 } ;
+                             TRANSFER_TOKENS ;
+                             CONS ;
+                             ITER { CONS } ;
+                             DIP 1 { DIG 17 ; DROP 1 } ;
+                             DUG 17 ;
+                             DROP 2 ;
+                             PAIR 15 ;
+                             SWAP ;
+                             PAIR }
+                           { UNPAIR ;
+                             SWAP ;
+                             DUP 3 ;
+                             SENDER ;
+                             COMPARE ;
+                             EQ ;
+                             NOT ;
+                             IF { PUSH string "INVALID_CALLER" ; FAILWITH } {} ;
+                             PUSH mutez 0 ;
+                             AMOUNT ;
+                             COMPARE ;
+                             EQ ;
+                             NOT ;
+                             IF { PUSH string "NO_FUND_EXPECTED" ; FAILWITH } {} ;
+                             PUSH string "rbac" ;
+                             DUP 2 ;
+                             COMPARE ;
+                             EQ ;
+                             IF { DUP 2 ; DIP 1 { DIG 5 ; DROP 1 } ; DUG 5 } {} ;
+                             PUSH string "implementation" ;
+                             DUP 2 ;
+                             COMPARE ;
+                             EQ ;
+                             IF { DUP 2 ; DIP 1 { DIG 3 ; DROP 1 } ; DUG 3 } {} ;
+                             DROP 2 ;
+                             PAIR 15 ;
+                             SWAP ;
+                             PAIR } }
+                       { IF_LEFT
+                           { UNPAIR ;
+                             SWAP ;
+                             PUSH mutez 0 ;
+                             AMOUNT ;
+                             COMPARE ;
+                             EQ ;
+                             NOT ;
+                             IF { PUSH string "NO_FUND_EXPECTED" ; FAILWITH } {} ;
+                             DUP 19 ;
+                             DUP 2 ;
+                             DUP 4 ;
+                             PAIR ;
+                             PACK ;
+                             PUSH int 10 ;
+                             PAIR ;
+                             DUP 5 ;
+                             PAIR ;
+                             DUP 7 ;
+                             PAIR ;
+                             DUP 8 ;
+                             PAIR ;
+                             DUP 10 ;
+                             PAIR ;
+                             DUP 11 ;
+                             PAIR ;
+                             DUP 12 ;
+                             PAIR ;
+                             DUP 13 ;
+                             PAIR ;
+                             DUP 14 ;
+                             PAIR ;
+                             DUP 15 ;
+                             PAIR ;
+                             DUP 16 ;
+                             PAIR ;
+                             DUP 17 ;
+                             PAIR ;
+                             DUP 18 ;
+                             PAIR ;
+                             EXEC ;
+                             NIL operation ;
+                             NIL operation ;
+                             DUP 21 ;
+                             ITER { CONS } ;
+                             DUP 7 ;
+                             CONTRACT
+                               (pair int
+                                     address
+                                     bytes
+                                     (pair address
+                                           address
+                                           address
+                                           (big_map nat (pair nat (map string bytes)))
+                                           (big_map (pair address nat) nat)
+                                           (big_map (pair address nat address) unit)
+                                           (big_map (pair address address) unit)
+                                           bool
+                                           (option address)
+                                           nat
+                                           (big_map string bytes)
+                                           (big_map address nat))) ;
+                             IF_NONE
+                               { PUSH string "default" ; PUSH string "ENTRY_NOT_FOUND" ; PAIR ; FAILWITH }
+                               {} ;
+                             PUSH mutez 0 ;
+                             DUP 5 ;
+                             TRANSFER_TOKENS ;
+                             CONS ;
+                             ITER { CONS } ;
+                             DIP 1 { DIG 18 ; DROP 1 } ;
+                             DUG 18 ;
+                             DROP 3 ;
+                             PAIR 15 ;
+                             SWAP ;
+                             PAIR }
+                           { PUSH mutez 0 ;
+                             AMOUNT ;
+                             COMPARE ;
+                             EQ ;
+                             NOT ;
+                             IF { PUSH string "NO_FUND_EXPECTED" ; FAILWITH } {} ;
+                             DUP 18 ;
+                             DUP 2 ;
+                             PUSH nat 0 ;
+                             PAIR ;
+                             PUSH nat 0 ;
+                             PAIR ;
+                             PACK ;
+                             PUSH int 12 ;
+                             PAIR ;
+                             DUP 4 ;
+                             PAIR ;
+                             DUP 6 ;
+                             PAIR ;
+                             DUP 7 ;
+                             PAIR ;
+                             DUP 9 ;
+                             PAIR ;
+                             DUP 10 ;
+                             PAIR ;
+                             DUP 11 ;
+                             PAIR ;
+                             DUP 12 ;
+                             PAIR ;
+                             DUP 13 ;
+                             PAIR ;
+                             DUP 14 ;
+                             PAIR ;
+                             DUP 15 ;
+                             PAIR ;
+                             DUP 16 ;
+                             PAIR ;
+                             DUP 17 ;
+                             PAIR ;
+                             EXEC ;
+                             NIL operation ;
+                             NIL operation ;
+                             DUP 20 ;
+                             ITER { CONS } ;
+                             DUP 6 ;
+                             CONTRACT
+                               (pair int
+                                     address
+                                     bytes
+                                     (pair address
+                                           address
+                                           address
+                                           (big_map nat (pair nat (map string bytes)))
+                                           (big_map (pair address nat) nat)
+                                           (big_map (pair address nat address) unit)
+                                           (big_map (pair address address) unit)
+                                           bool
+                                           (option address)
+                                           nat
+                                           (big_map string bytes)
+                                           (big_map address nat))) ;
+                             IF_NONE
+                               { PUSH string "default" ; PUSH string "ENTRY_NOT_FOUND" ; PAIR ; FAILWITH }
+                               {} ;
+                             PUSH mutez 0 ;
+                             DUP 5 ;
+                             TRANSFER_TOKENS ;
+                             CONS ;
+                             ITER { CONS } ;
+                             DIP 1 { DIG 17 ; DROP 1 } ;
+                             DUG 17 ;
+                             DROP 2 ;
+                             PAIR 15 ;
+                             SWAP ;
+                             PAIR } } }
+                   { IF_LEFT
+                       { IF_LEFT
+                           { PUSH mutez 0 ;
+                             AMOUNT ;
+                             COMPARE ;
+                             EQ ;
+                             NOT ;
+                             IF { PUSH string "NO_FUND_EXPECTED" ; FAILWITH } {} ;
+                             DUP 18 ;
+                             DUP 2 ;
+                             PACK ;
+                             PUSH int 7 ;
+                             PAIR ;
+                             DUP 4 ;
+                             PAIR ;
+                             DUP 6 ;
+                             PAIR ;
+                             DUP 7 ;
+                             PAIR ;
+                             DUP 9 ;
+                             PAIR ;
+                             DUP 10 ;
+                             PAIR ;
+                             DUP 11 ;
+                             PAIR ;
+                             DUP 12 ;
+                             PAIR ;
+                             DUP 13 ;
+                             PAIR ;
+                             DUP 14 ;
+                             PAIR ;
+                             DUP 15 ;
+                             PAIR ;
+                             DUP 16 ;
+                             PAIR ;
+                             DUP 17 ;
+                             PAIR ;
+                             EXEC ;
+                             NIL operation ;
+                             NIL operation ;
+                             DUP 20 ;
+                             ITER { CONS } ;
+                             DUP 6 ;
+                             CONTRACT
+                               (pair int
+                                     address
+                                     bytes
+                                     (pair address
+                                           address
+                                           address
+                                           (big_map nat (pair nat (map string bytes)))
+                                           (big_map (pair address nat) nat)
+                                           (big_map (pair address nat address) unit)
+                                           (big_map (pair address address) unit)
+                                           bool
+                                           (option address)
+                                           nat
+                                           (big_map string bytes)
+                                           (big_map address nat))) ;
+                             IF_NONE
+                               { PUSH string "default" ; PUSH string "ENTRY_NOT_FOUND" ; PAIR ; FAILWITH }
+                               {} ;
+                             PUSH mutez 0 ;
+                             DUP 5 ;
+                             TRANSFER_TOKENS ;
+                             CONS ;
+                             ITER { CONS } ;
+                             DIP 1 { DIG 17 ; DROP 1 } ;
+                             DUG 17 ;
+                             DROP 2 ;
+                             PAIR 15 ;
+                             SWAP ;
+                             PAIR }
+                           { PUSH mutez 0 ;
+                             AMOUNT ;
+                             COMPARE ;
+                             EQ ;
+                             NOT ;
+                             IF { PUSH string "NO_FUND_EXPECTED" ; FAILWITH } {} ;
+                             DUP 18 ;
+                             DUP 2 ;
+                             PACK ;
+                             PUSH int 11 ;
+                             PAIR ;
+                             DUP 4 ;
+                             PAIR ;
+                             DUP 6 ;
+                             PAIR ;
+                             DUP 7 ;
+                             PAIR ;
+                             DUP 9 ;
+                             PAIR ;
+                             DUP 10 ;
+                             PAIR ;
+                             DUP 11 ;
+                             PAIR ;
+                             DUP 12 ;
+                             PAIR ;
+                             DUP 13 ;
+                             PAIR ;
+                             DUP 14 ;
+                             PAIR ;
+                             DUP 15 ;
+                             PAIR ;
+                             DUP 16 ;
+                             PAIR ;
+                             DUP 17 ;
+                             PAIR ;
+                             EXEC ;
+                             NIL operation ;
+                             NIL operation ;
+                             DUP 20 ;
+                             ITER { CONS } ;
+                             DUP 6 ;
+                             CONTRACT
+                               (pair int
+                                     address
+                                     bytes
+                                     (pair address
+                                           address
+                                           address
+                                           (big_map nat (pair nat (map string bytes)))
+                                           (big_map (pair address nat) nat)
+                                           (big_map (pair address nat address) unit)
+                                           (big_map (pair address address) unit)
+                                           bool
+                                           (option address)
+                                           nat
+                                           (big_map string bytes)
+                                           (big_map address nat))) ;
+                             IF_NONE
+                               { PUSH string "default" ; PUSH string "ENTRY_NOT_FOUND" ; PAIR ; FAILWITH }
+                               {} ;
+                             PUSH mutez 0 ;
+                             DUP 5 ;
+                             TRANSFER_TOKENS ;
+                             CONS ;
+                             ITER { CONS } ;
+                             DIP 1 { DIG 17 ; DROP 1 } ;
+                             DUG 17 ;
+                             DROP 2 ;
+                             PAIR 15 ;
+                             SWAP ;
+                             PAIR } }
+                       { IF_LEFT
+                           { PUSH mutez 0 ;
+                             AMOUNT ;
+                             COMPARE ;
+                             EQ ;
+                             NOT ;
+                             IF { PUSH string "NO_FUND_EXPECTED" ; FAILWITH } {} ;
+                             DUP 18 ;
+                             DUP 2 ;
+                             PACK ;
+                             PUSH int 8 ;
+                             PAIR ;
+                             DUP 4 ;
+                             PAIR ;
+                             DUP 6 ;
+                             PAIR ;
+                             DUP 7 ;
+                             PAIR ;
+                             DUP 9 ;
+                             PAIR ;
+                             DUP 10 ;
+                             PAIR ;
+                             DUP 11 ;
+                             PAIR ;
+                             DUP 12 ;
+                             PAIR ;
+                             DUP 13 ;
+                             PAIR ;
+                             DUP 14 ;
+                             PAIR ;
+                             DUP 15 ;
+                             PAIR ;
+                             DUP 16 ;
+                             PAIR ;
+                             DUP 17 ;
+                             PAIR ;
+                             EXEC ;
+                             NIL operation ;
+                             NIL operation ;
+                             DUP 20 ;
+                             ITER { CONS } ;
+                             DUP 6 ;
+                             CONTRACT
+                               (pair int
+                                     address
+                                     bytes
+                                     (pair address
+                                           address
+                                           address
+                                           (big_map nat (pair nat (map string bytes)))
+                                           (big_map (pair address nat) nat)
+                                           (big_map (pair address nat address) unit)
+                                           (big_map (pair address address) unit)
+                                           bool
+                                           (option address)
+                                           nat
+                                           (big_map string bytes)
+                                           (big_map address nat))) ;
+                             IF_NONE
+                               { PUSH string "default" ; PUSH string "ENTRY_NOT_FOUND" ; PAIR ; FAILWITH }
+                               {} ;
+                             PUSH mutez 0 ;
+                             DUP 5 ;
+                             TRANSFER_TOKENS ;
+                             CONS ;
+                             ITER { CONS } ;
+                             DIP 1 { DIG 17 ; DROP 1 } ;
+                             DUG 17 ;
+                             DROP 2 ;
+                             PAIR 15 ;
+                             SWAP ;
+                             PAIR }
+                           { DROP 1 ;
+                             PUSH mutez 0 ;
+                             AMOUNT ;
+                             COMPARE ;
+                             EQ ;
+                             NOT ;
+                             IF { PUSH string "NO_FUND_EXPECTED" ; FAILWITH } {} ;
+                             DUP 17 ;
+                             SENDER ;
+                             PACK ;
+                             PUSH int 9 ;
+                             PAIR ;
+                             DUP 3 ;
+                             PAIR ;
+                             DUP 5 ;
+                             PAIR ;
+                             DUP 6 ;
+                             PAIR ;
+                             DUP 8 ;
+                             PAIR ;
+                             DUP 9 ;
+                             PAIR ;
+                             DUP 10 ;
+                             PAIR ;
+                             DUP 11 ;
+                             PAIR ;
+                             DUP 12 ;
+                             PAIR ;
+                             DUP 13 ;
+                             PAIR ;
+                             DUP 14 ;
+                             PAIR ;
+                             DUP 15 ;
+                             PAIR ;
+                             DUP 16 ;
+                             PAIR ;
+                             EXEC ;
+                             NIL operation ;
+                             NIL operation ;
+                             DUP 19 ;
+                             ITER { CONS } ;
+                             DUP 5 ;
+                             CONTRACT
+                               (pair int
+                                     address
+                                     bytes
+                                     (pair address
+                                           address
+                                           address
+                                           (big_map nat (pair nat (map string bytes)))
+                                           (big_map (pair address nat) nat)
+                                           (big_map (pair address nat address) unit)
+                                           (big_map (pair address address) unit)
+                                           bool
+                                           (option address)
+                                           nat
+                                           (big_map string bytes)
+                                           (big_map address nat))) ;
+                             IF_NONE
+                               { PUSH string "default" ; PUSH string "ENTRY_NOT_FOUND" ; PAIR ; FAILWITH }
+                               {} ;
+                             PUSH mutez 0 ;
+                             DUP 5 ;
+                             TRANSFER_TOKENS ;
+                             CONS ;
+                             ITER { CONS } ;
+                             DIP 1 { DIG 16 ; DROP 1 } ;
+                             DUG 16 ;
+                             DROP 1 ;
+                             PAIR 15 ;
+                             SWAP ;
+                             PAIR } } } }
+               { IF_LEFT
+                   { IF_LEFT
+                       { IF_LEFT
+                           { PUSH mutez 0 ;
+                             AMOUNT ;
+                             COMPARE ;
+                             EQ ;
+                             NOT ;
+                             IF { PUSH string "NO_FUND_EXPECTED" ; FAILWITH } {} ;
+                             DUP 18 ;
+                             DUP 2 ;
+                             DUP 4 ;
+                             PAIR ;
+                             DUP 6 ;
+                             PAIR ;
+                             DUP 7 ;
+                             PAIR ;
+                             DUP 9 ;
+                             PAIR ;
+                             DUP 10 ;
+                             PAIR ;
+                             DUP 11 ;
+                             PAIR ;
+                             DUP 12 ;
+                             PAIR ;
+                             DUP 13 ;
+                             PAIR ;
+                             DUP 14 ;
+                             PAIR ;
+                             DUP 15 ;
+                             PAIR ;
+                             DUP 16 ;
+                             PAIR ;
+                             DUP 17 ;
+                             PAIR ;
+                             EXEC ;
+                             NIL operation ;
+                             NIL operation ;
+                             DUP 20 ;
+                             ITER { CONS } ;
+                             DUP 6 ;
+                             CONTRACT
+                               (pair int
+                                     address
+                                     bytes
+                                     (pair address
+                                           address
+                                           address
+                                           (big_map nat (pair nat (map string bytes)))
+                                           (big_map (pair address nat) nat)
+                                           (big_map (pair address nat address) unit)
+                                           (big_map (pair address address) unit)
+                                           bool
+                                           (option address)
+                                           nat
+                                           (big_map string bytes)
+                                           (big_map address nat))) ;
+                             IF_NONE
+                               { PUSH string "default" ; PUSH string "ENTRY_NOT_FOUND" ; PAIR ; FAILWITH }
+                               {} ;
+                             PUSH mutez 0 ;
+                             DUP 5 ;
+                             TRANSFER_TOKENS ;
+                             CONS ;
+                             ITER { CONS } ;
+                             DIP 1 { DIG 17 ; DROP 1 } ;
+                             DUG 17 ;
+                             DROP 2 ;
+                             PAIR 15 ;
+                             SWAP ;
+                             PAIR }
+                           { DUP 3 ;
+                             SENDER ;
+                             COMPARE ;
+                             EQ ;
+                             NOT ;
+                             IF { PUSH string "INVALID_CALLER" ; FAILWITH } {} ;
+                             PUSH mutez 0 ;
+                             AMOUNT ;
+                             COMPARE ;
+                             EQ ;
+                             NOT ;
+                             IF { PUSH string "NO_FUND_EXPECTED" ; FAILWITH } {} ;
+                             DUP ;
+                             GET 1 ;
+                             DIP 1 { SWAP ; DROP 1 } ;
+                             SWAP ;
+                             DUP ;
+                             GET 15 ;
+                             DIP 1 { DIG 10 ; DROP 1 } ;
+                             DUG 10 ;
+                             DUP ;
+                             GET 17 ;
+                             DIP 1 { DIG 11 ; DROP 1 } ;
+                             DUG 11 ;
+                             DUP ;
+                             GET 19 ;
+                             DIP 1 { DIG 12 ; DROP 1 } ;
+                             DUG 12 ;
+                             DUP ;
+                             GET 3 ;
+                             DIP 1 { DIG 3 ; DROP 1 } ;
+                             DUG 3 ;
+                             DUP ;
+                             GET 21 ;
+                             DIP 1 { DIG 15 ; DROP 1 } ;
+                             DUG 15 ;
+                             DUP ;
+                             GET 22 ;
+                             DIP 1 { DIG 14 ; DROP 1 } ;
+                             DUG 14 ;
+                             DROP 1 ;
+                             PAIR 15 ;
+                             SWAP ;
+                             PAIR } }
+                       { IF_LEFT
+                           { UNPAIR ;
+                             SWAP ;
+                             DUP 4 ;
+                             SENDER ;
+                             COMPARE ;
+                             EQ ;
+                             NOT ;
+                             IF { PUSH string "INVALID_CALLER" ; FAILWITH } {} ;
+                             PUSH mutez 0 ;
+                             AMOUNT ;
+                             COMPARE ;
+                             EQ ;
+                             NOT ;
+                             IF { PUSH string "NO_TRANSFER" ; FAILWITH } {} ;
+                             DUP 17 ;
+                             DUP 2 ;
+                             SOME ;
+                             DUP 4 ;
+                             UPDATE ;
+                             DIP 1 { DIG 16 ; DROP 1 } ;
+                             DUG 16 ;
+                             DROP 2 ;
+                             PAIR 15 ;
+                             SWAP ;
+                             PAIR }
+                           { UNPAIR ;
+                             SWAP ;
+                             DUP 4 ;
+                             SENDER ;
+                             COMPARE ;
+                             EQ ;
+                             NOT ;
+                             IF { PUSH string "INVALID_CALLER" ; FAILWITH } {} ;
+                             PUSH mutez 0 ;
+                             AMOUNT ;
+                             COMPARE ;
+                             EQ ;
+                             NOT ;
+                             IF { PUSH string "NO_TRANSFER" ; FAILWITH } {} ;
+                             DUP ;
+                             IF_NONE
+                               { DUP 8 ;
+                                 NONE (pair nat (map string bytes)) ;
+                                 DUP 4 ;
+                                 UPDATE ;
+                                 DIP 1 { DIG 7 ; DROP 1 } ;
+                                 DUG 7 }
+                               { DUP 9 ;
+                                 DUP 2 ;
+                                 SOME ;
+                                 DUP 5 ;
+                                 UPDATE ;
+                                 DIP 1 { DIG 8 ; DROP 1 } ;
+                                 DUG 8 ;
+                                 DROP 1 } ;
+                             DROP 2 ;
+                             PAIR 15 ;
+                             SWAP ;
+                             PAIR } } }
+                   { IF_LEFT
+                       { IF_LEFT
+                           { DUP 3 ;
+                             SENDER ;
+                             COMPARE ;
+                             EQ ;
+                             NOT ;
+                             IF { PUSH string "INVALID_CALLER" ; FAILWITH } {} ;
+                             PUSH mutez 0 ;
+                             AMOUNT ;
+                             COMPARE ;
+                             EQ ;
+                             NOT ;
+                             IF { PUSH string "NO_TRANSFER" ; FAILWITH } {} ;
+                             DUP ;
+                             ITER { SELF_ADDRESS ;
+                                    DUP 2 ;
+                                    GET 1 ;
+                                    VIEW "get_ledger" nat ;
+                                    IF_NONE { PUSH nat 0 ; FAILWITH } {} ;
+                                    DUP 2 ;
+                                    GET 2 ;
+                                    DUP 2 ;
+                                    INT ;
+                                    ADD ;
+                                    ISNAT ;
+                                    IF_NONE { PUSH string "FA2_INSUFFICIENT_BALANCE" ; FAILWITH } {} ;
+                                    PUSH nat 0 ;
+                                    DUP 2 ;
+                                    COMPARE ;
+                                    EQ ;
+                                    IF { DUP 11 ;
+                                         NONE nat ;
+                                         DUP 5 ;
+                                         GET 1 ;
+                                         UPDATE ;
+                                         DIP 1 { DIG 10 ; DROP 1 } ;
+                                         DUG 10 }
+                                       { DUP 11 ;
+                                         DUP 2 ;
+                                         SOME ;
+                                         DUP 5 ;
+                                         GET 1 ;
+                                         UPDATE ;
+                                         DIP 1 { DIG 10 ; DROP 1 } ;
+                                         DUG 10 } ;
+                                    DROP 3 } ;
+                             DROP 1 ;
+                             PAIR 15 ;
+                             SWAP ;
+                             PAIR }
+                           { DUP 3 ;
+                             SENDER ;
+                             COMPARE ;
+                             EQ ;
+                             NOT ;
+                             IF { PUSH string "INVALID_CALLER" ; FAILWITH } {} ;
+                             PUSH mutez 0 ;
+                             AMOUNT ;
+                             COMPARE ;
+                             EQ ;
+                             NOT ;
+                             IF { PUSH string "NO_TRANSFER" ; FAILWITH } {} ;
+                             DUP ;
+                             ITER { DUP ;
+                                    GET 2 ;
+                                    IF_NONE
+                                      { DUP 10 ;
+                                        NONE unit ;
+                                        DUP 3 ;
+                                        GET 1 ;
+                                        UPDATE ;
+                                        DIP 1 { DIG 9 ; DROP 1 } ;
+                                        DUG 9 }
+                                      { DUP 11 ;
+                                        DUP 2 ;
+                                        SOME ;
+                                        DUP 4 ;
+                                        GET 1 ;
+                                        UPDATE ;
+                                        DIP 1 { DIG 10 ; DROP 1 } ;
+                                        DUG 10 ;
+                                        DROP 1 } ;
+                                    DROP 1 } ;
+                             DROP 1 ;
+                             PAIR 15 ;
+                             SWAP ;
+                             PAIR } }
+                       { IF_LEFT
+                           { PUSH mutez 0 ;
+                             AMOUNT ;
+                             COMPARE ;
+                             EQ ;
+                             NOT ;
+                             IF { PUSH string "NO_FUND_EXPECTED" ; FAILWITH } {} ;
+                             DUP 18 ;
+                             DUP 2 ;
+                             PACK ;
+                             PUSH int 2 ;
+                             PAIR ;
+                             DUP 4 ;
+                             PAIR ;
+                             DUP 6 ;
+                             PAIR ;
+                             DUP 7 ;
+                             PAIR ;
+                             DUP 9 ;
+                             PAIR ;
+                             DUP 10 ;
+                             PAIR ;
+                             DUP 11 ;
+                             PAIR ;
+                             DUP 12 ;
+                             PAIR ;
+                             DUP 13 ;
+                             PAIR ;
+                             DUP 14 ;
+                             PAIR ;
+                             DUP 15 ;
+                             PAIR ;
+                             DUP 16 ;
+                             PAIR ;
+                             DUP 17 ;
+                             PAIR ;
+                             EXEC ;
+                             NIL operation ;
+                             NIL operation ;
+                             DUP 20 ;
+                             ITER { CONS } ;
+                             DUP 6 ;
+                             CONTRACT
+                               (pair int
+                                     address
+                                     bytes
+                                     (pair address
+                                           address
+                                           address
+                                           (big_map nat (pair nat (map string bytes)))
+                                           (big_map (pair address nat) nat)
+                                           (big_map (pair address nat address) unit)
+                                           (big_map (pair address address) unit)
+                                           bool
+                                           (option address)
+                                           nat
+                                           (big_map string bytes)
+                                           (big_map address nat))) ;
+                             IF_NONE
+                               { PUSH string "default" ; PUSH string "ENTRY_NOT_FOUND" ; PAIR ; FAILWITH }
+                               {} ;
+                             PUSH mutez 0 ;
+                             DUP 5 ;
+                             TRANSFER_TOKENS ;
+                             CONS ;
+                             ITER { CONS } ;
+                             DIP 1 { DIG 17 ; DROP 1 } ;
+                             DUG 17 ;
+                             DROP 2 ;
+                             PAIR 15 ;
+                             SWAP ;
+                             PAIR }
+                           { PUSH mutez 0 ;
+                             AMOUNT ;
+                             COMPARE ;
+                             EQ ;
+                             NOT ;
+                             IF { PUSH string "NO_FUND_EXPECTED" ; FAILWITH } {} ;
+                             DUP 18 ;
+                             DUP 2 ;
+                             PACK ;
+                             PUSH int 0 ;
+                             PAIR ;
+                             DUP 4 ;
+                             PAIR ;
+                             DUP 6 ;
+                             PAIR ;
+                             DUP 7 ;
+                             PAIR ;
+                             DUP 9 ;
+                             PAIR ;
+                             DUP 10 ;
+                             PAIR ;
+                             DUP 11 ;
+                             PAIR ;
+                             DUP 12 ;
+                             PAIR ;
+                             DUP 13 ;
+                             PAIR ;
+                             DUP 14 ;
+                             PAIR ;
+                             DUP 15 ;
+                             PAIR ;
+                             DUP 16 ;
+                             PAIR ;
+                             DUP 17 ;
+                             PAIR ;
+                             EXEC ;
+                             NIL operation ;
+                             NIL operation ;
+                             DUP 20 ;
+                             ITER { CONS } ;
+                             DUP 6 ;
+                             CONTRACT
+                               (pair int
+                                     address
+                                     bytes
+                                     (pair address
+                                           address
+                                           address
+                                           (big_map nat (pair nat (map string bytes)))
+                                           (big_map (pair address nat) nat)
+                                           (big_map (pair address nat address) unit)
+                                           (big_map (pair address address) unit)
+                                           bool
+                                           (option address)
+                                           nat
+                                           (big_map string bytes)
+                                           (big_map address nat))) ;
+                             IF_NONE
+                               { PUSH string "default" ; PUSH string "ENTRY_NOT_FOUND" ; PAIR ; FAILWITH }
+                               {} ;
+                             PUSH mutez 0 ;
+                             DUP 5 ;
+                             TRANSFER_TOKENS ;
+                             CONS ;
+                             ITER { CONS } ;
+                             DIP 1 { DIG 17 ; DROP 1 } ;
+                             DUG 17 ;
+                             DROP 2 ;
+                             PAIR 15 ;
+                             SWAP ;
+                             PAIR } } } } }
+           { IF_LEFT
+               { IF_LEFT
+                   { IF_LEFT
+                       { PUSH mutez 0 ;
+                         AMOUNT ;
+                         COMPARE ;
+                         EQ ;
+                         NOT ;
+                         IF { PUSH string "NO_FUND_EXPECTED" ; FAILWITH } {} ;
+                         DUP 18 ;
+                         DUP 2 ;
+                         PACK ;
+                         PUSH int 1 ;
+                         PAIR ;
+                         DUP 4 ;
+                         PAIR ;
+                         DUP 6 ;
+                         PAIR ;
+                         DUP 7 ;
+                         PAIR ;
+                         DUP 9 ;
+                         PAIR ;
+                         DUP 10 ;
+                         PAIR ;
+                         DUP 11 ;
+                         PAIR ;
+                         DUP 12 ;
+                         PAIR ;
+                         DUP 13 ;
+                         PAIR ;
+                         DUP 14 ;
+                         PAIR ;
+                         DUP 15 ;
+                         PAIR ;
+                         DUP 16 ;
+                         PAIR ;
+                         DUP 17 ;
+                         PAIR ;
+                         EXEC ;
+                         NIL operation ;
+                         NIL operation ;
+                         DUP 20 ;
+                         ITER { CONS } ;
+                         DUP 6 ;
+                         CONTRACT
+                           (pair int
+                                 address
+                                 bytes
+                                 (pair address
+                                       address
+                                       address
+                                       (big_map nat (pair nat (map string bytes)))
+                                       (big_map (pair address nat) nat)
+                                       (big_map (pair address nat address) unit)
+                                       (big_map (pair address address) unit)
+                                       bool
+                                       (option address)
+                                       nat
+                                       (big_map string bytes)
+                                       (big_map address nat))) ;
+                         IF_NONE
+                           { PUSH string "default" ; PUSH string "ENTRY_NOT_FOUND" ; PAIR ; FAILWITH }
+                           {} ;
+                         PUSH mutez 0 ;
+                         DUP 5 ;
+                         TRANSFER_TOKENS ;
+                         CONS ;
+                         ITER { CONS } ;
+                         DIP 1 { DIG 17 ; DROP 1 } ;
+                         DUG 17 ;
+                         DROP 2 ;
+                         PAIR 15 ;
+                         SWAP ;
+                         PAIR }
+                       { UNPAIR ;
+                         SWAP ;
+                         PUSH mutez 0 ;
+                         AMOUNT ;
+                         COMPARE ;
+                         EQ ;
+                         NOT ;
+                         IF { PUSH string "NO_FUND_EXPECTED" ; FAILWITH } {} ;
+                         DUP 19 ;
+                         DUP 2 ;
+                         PUSH nat 0 ;
+                         PAIR ;
+                         DUP 4 ;
+                         PAIR ;
+                         PACK ;
+                         PUSH int 3 ;
+                         PAIR ;
+                         DUP 5 ;
+                         PAIR ;
+                         DUP 7 ;
+                         PAIR ;
+                         DUP 8 ;
+                         PAIR ;
+                         DUP 10 ;
+                         PAIR ;
+                         DUP 11 ;
+                         PAIR ;
+                         DUP 12 ;
+                         PAIR ;
+                         DUP 13 ;
+                         PAIR ;
+                         DUP 14 ;
+                         PAIR ;
+                         DUP 15 ;
+                         PAIR ;
+                         DUP 16 ;
+                         PAIR ;
+                         DUP 17 ;
+                         PAIR ;
+                         DUP 18 ;
+                         PAIR ;
+                         EXEC ;
+                         NIL operation ;
+                         NIL operation ;
+                         DUP 21 ;
+                         ITER { CONS } ;
+                         DUP 7 ;
+                         CONTRACT
+                           (pair int
+                                 address
+                                 bytes
+                                 (pair address
+                                       address
+                                       address
+                                       (big_map nat (pair nat (map string bytes)))
+                                       (big_map (pair address nat) nat)
+                                       (big_map (pair address nat address) unit)
+                                       (big_map (pair address address) unit)
+                                       bool
+                                       (option address)
+                                       nat
+                                       (big_map string bytes)
+                                       (big_map address nat))) ;
+                         IF_NONE
+                           { PUSH string "default" ; PUSH string "ENTRY_NOT_FOUND" ; PAIR ; FAILWITH }
+                           {} ;
+                         PUSH mutez 0 ;
+                         DUP 5 ;
+                         TRANSFER_TOKENS ;
+                         CONS ;
+                         ITER { CONS } ;
+                         DIP 1 { DIG 18 ; DROP 1 } ;
+                         DUG 18 ;
+                         DROP 3 ;
+                         PAIR 15 ;
+                         SWAP ;
+                         PAIR } }
+                   { IF_LEFT
+                       { UNPAIR ;
+                         SWAP ;
+                         PUSH mutez 0 ;
+                         AMOUNT ;
+                         COMPARE ;
+                         EQ ;
+                         NOT ;
+                         IF { PUSH string "NO_FUND_EXPECTED" ; FAILWITH } {} ;
+                         DUP 19 ;
+                         DUP 2 ;
+                         PUSH nat 0 ;
+                         PAIR ;
+                         DUP 4 ;
+                         PAIR ;
+                         PACK ;
+                         PUSH int 4 ;
+                         PAIR ;
+                         DUP 5 ;
+                         PAIR ;
+                         DUP 7 ;
+                         PAIR ;
+                         DUP 8 ;
+                         PAIR ;
+                         DUP 10 ;
+                         PAIR ;
+                         DUP 11 ;
+                         PAIR ;
+                         DUP 12 ;
+                         PAIR ;
+                         DUP 13 ;
+                         PAIR ;
+                         DUP 14 ;
+                         PAIR ;
+                         DUP 15 ;
+                         PAIR ;
+                         DUP 16 ;
+                         PAIR ;
+                         DUP 17 ;
+                         PAIR ;
+                         DUP 18 ;
+                         PAIR ;
+                         EXEC ;
+                         NIL operation ;
+                         NIL operation ;
+                         DUP 21 ;
+                         ITER { CONS } ;
+                         DUP 7 ;
+                         CONTRACT
+                           (pair int
+                                 address
+                                 bytes
+                                 (pair address
+                                       address
+                                       address
+                                       (big_map nat (pair nat (map string bytes)))
+                                       (big_map (pair address nat) nat)
+                                       (big_map (pair address nat address) unit)
+                                       (big_map (pair address address) unit)
+                                       bool
+                                       (option address)
+                                       nat
+                                       (big_map string bytes)
+                                       (big_map address nat))) ;
+                         IF_NONE
+                           { PUSH string "default" ; PUSH string "ENTRY_NOT_FOUND" ; PAIR ; FAILWITH }
+                           {} ;
+                         PUSH mutez 0 ;
+                         DUP 5 ;
+                         TRANSFER_TOKENS ;
+                         CONS ;
+                         ITER { CONS } ;
+                         DIP 1 { DIG 18 ; DROP 1 } ;
+                         DUG 18 ;
+                         DROP 3 ;
+                         PAIR 15 ;
+                         SWAP ;
+                         PAIR }
+                       { DROP 1 ;
+                         PUSH mutez 0 ;
+                         AMOUNT ;
+                         COMPARE ;
+                         EQ ;
+                         NOT ;
+                         IF { PUSH string "NO_FUND_EXPECTED" ; FAILWITH } {} ;
+                         DUP 17 ;
+                         PUSH bool True ;
+                         PACK ;
+                         PUSH int 5 ;
+                         PAIR ;
+                         DUP 3 ;
+                         PAIR ;
+                         DUP 5 ;
+                         PAIR ;
+                         DUP 6 ;
+                         PAIR ;
+                         DUP 8 ;
+                         PAIR ;
+                         DUP 9 ;
+                         PAIR ;
+                         DUP 10 ;
+                         PAIR ;
+                         DUP 11 ;
+                         PAIR ;
+                         DUP 12 ;
+                         PAIR ;
+                         DUP 13 ;
+                         PAIR ;
+                         DUP 14 ;
+                         PAIR ;
+                         DUP 15 ;
+                         PAIR ;
+                         DUP 16 ;
+                         PAIR ;
+                         EXEC ;
+                         NIL operation ;
+                         NIL operation ;
+                         DUP 19 ;
+                         ITER { CONS } ;
+                         DUP 5 ;
+                         CONTRACT
+                           (pair int
+                                 address
+                                 bytes
+                                 (pair address
+                                       address
+                                       address
+                                       (big_map nat (pair nat (map string bytes)))
+                                       (big_map (pair address nat) nat)
+                                       (big_map (pair address nat address) unit)
+                                       (big_map (pair address address) unit)
+                                       bool
+                                       (option address)
+                                       nat
+                                       (big_map string bytes)
+                                       (big_map address nat))) ;
+                         IF_NONE
+                           { PUSH string "default" ; PUSH string "ENTRY_NOT_FOUND" ; PAIR ; FAILWITH }
+                           {} ;
+                         PUSH mutez 0 ;
+                         DUP 5 ;
+                         TRANSFER_TOKENS ;
+                         CONS ;
+                         ITER { CONS } ;
+                         DIP 1 { DIG 16 ; DROP 1 } ;
+                         DUG 16 ;
+                         DROP 1 ;
+                         PAIR 15 ;
+                         SWAP ;
+                         PAIR } } }
+               { IF_LEFT
+                   { IF_LEFT
+                       { DROP 1 ;
+                         PUSH mutez 0 ;
+                         AMOUNT ;
+                         COMPARE ;
+                         EQ ;
+                         NOT ;
+                         IF { PUSH string "NO_FUND_EXPECTED" ; FAILWITH } {} ;
+                         DUP 17 ;
+                         PUSH bool False ;
+                         PACK ;
+                         PUSH int 6 ;
+                         PAIR ;
+                         DUP 3 ;
+                         PAIR ;
+                         DUP 5 ;
+                         PAIR ;
+                         DUP 6 ;
+                         PAIR ;
+                         DUP 8 ;
+                         PAIR ;
+                         DUP 9 ;
+                         PAIR ;
+                         DUP 10 ;
+                         PAIR ;
+                         DUP 11 ;
+                         PAIR ;
+                         DUP 12 ;
+                         PAIR ;
+                         DUP 13 ;
+                         PAIR ;
+                         DUP 14 ;
+                         PAIR ;
+                         DUP 15 ;
+                         PAIR ;
+                         DUP 16 ;
+                         PAIR ;
+                         EXEC ;
+                         NIL operation ;
+                         NIL operation ;
+                         DUP 19 ;
+                         ITER { CONS } ;
+                         DUP 5 ;
+                         CONTRACT
+                           (pair int
+                                 address
+                                 bytes
+                                 (pair address
+                                       address
+                                       address
+                                       (big_map nat (pair nat (map string bytes)))
+                                       (big_map (pair address nat) nat)
+                                       (big_map (pair address nat address) unit)
+                                       (big_map (pair address address) unit)
+                                       bool
+                                       (option address)
+                                       nat
+                                       (big_map string bytes)
+                                       (big_map address nat))) ;
+                         IF_NONE
+                           { PUSH string "default" ; PUSH string "ENTRY_NOT_FOUND" ; PAIR ; FAILWITH }
+                           {} ;
+                         PUSH mutez 0 ;
+                         DUP 5 ;
+                         TRANSFER_TOKENS ;
+                         CONS ;
+                         ITER { CONS } ;
+                         DIP 1 { DIG 16 ; DROP 1 } ;
+                         DUG 16 ;
+                         DROP 1 ;
+                         PAIR 15 ;
+                         SWAP ;
+                         PAIR }
+                       { PUSH mutez 0 ;
+                         AMOUNT ;
+                         COMPARE ;
+                         EQ ;
+                         NOT ;
+                         IF { PUSH string "NO_FUND_EXPECTED" ; FAILWITH } {} ;
+                         DUP 18 ;
+                         DUP 2 ;
+                         PACK ;
+                         PUSH int 13 ;
+                         PAIR ;
+                         DUP 4 ;
+                         PAIR ;
+                         DUP 6 ;
+                         PAIR ;
+                         DUP 7 ;
+                         PAIR ;
+                         DUP 9 ;
+                         PAIR ;
+                         DUP 10 ;
+                         PAIR ;
+                         DUP 11 ;
+                         PAIR ;
+                         DUP 12 ;
+                         PAIR ;
+                         DUP 13 ;
+                         PAIR ;
+                         DUP 14 ;
+                         PAIR ;
+                         DUP 15 ;
+                         PAIR ;
+                         DUP 16 ;
+                         PAIR ;
+                         DUP 17 ;
+                         PAIR ;
+                         EXEC ;
+                         NIL operation ;
+                         NIL operation ;
+                         DUP 20 ;
+                         ITER { CONS } ;
+                         DUP 6 ;
+                         CONTRACT
+                           (pair int
+                                 address
+                                 bytes
+                                 (pair address
+                                       address
+                                       address
+                                       (big_map nat (pair nat (map string bytes)))
+                                       (big_map (pair address nat) nat)
+                                       (big_map (pair address nat address) unit)
+                                       (big_map (pair address address) unit)
+                                       bool
+                                       (option address)
+                                       nat
+                                       (big_map string bytes)
+                                       (big_map address nat))) ;
+                         IF_NONE
+                           { PUSH string "default" ; PUSH string "ENTRY_NOT_FOUND" ; PAIR ; FAILWITH }
+                           {} ;
+                         PUSH mutez 0 ;
+                         DUP 5 ;
+                         TRANSFER_TOKENS ;
+                         CONS ;
+                         ITER { CONS } ;
+                         DIP 1 { DIG 17 ; DROP 1 } ;
+                         DUG 17 ;
+                         DROP 2 ;
+                         PAIR 15 ;
+                         SWAP ;
+                         PAIR } }
+                   { PUSH mutez 0 ;
+                     AMOUNT ;
+                     COMPARE ;
+                     EQ ;
+                     NOT ;
+                     IF { PUSH string "NO_FUND_EXPECTED" ; FAILWITH } {} ;
+                     DUP 18 ;
+                     DUP 2 ;
+                     PACK ;
+                     PUSH int 14 ;
+                     PAIR ;
+                     DUP 4 ;
+                     PAIR ;
+                     DUP 6 ;
+                     PAIR ;
+                     DUP 7 ;
+                     PAIR ;
+                     DUP 9 ;
+                     PAIR ;
+                     DUP 10 ;
+                     PAIR ;
+                     DUP 11 ;
+                     PAIR ;
+                     DUP 12 ;
+                     PAIR ;
+                     DUP 13 ;
+                     PAIR ;
+                     DUP 14 ;
+                     PAIR ;
+                     DUP 15 ;
+                     PAIR ;
+                     DUP 16 ;
+                     PAIR ;
+                     DUP 17 ;
+                     PAIR ;
+                     EXEC ;
+                     NIL operation ;
+                     NIL operation ;
+                     DUP 20 ;
+                     ITER { CONS } ;
+                     DUP 6 ;
+                     CONTRACT
+                       (pair int
+                             address
+                             bytes
+                             (pair address
+                                   address
+                                   address
+                                   (big_map nat (pair nat (map string bytes)))
+                                   (big_map (pair address nat) nat)
+                                   (big_map (pair address nat address) unit)
+                                   (big_map (pair address address) unit)
+                                   bool
+                                   (option address)
+                                   nat
+                                   (big_map string bytes)
+                                   (big_map address nat))) ;
+                     IF_NONE
+                       { PUSH string "default" ; PUSH string "ENTRY_NOT_FOUND" ; PAIR ; FAILWITH }
+                       {} ;
+                     PUSH mutez 0 ;
+                     DUP 5 ;
+                     TRANSFER_TOKENS ;
+                     CONS ;
+                     ITER { CONS } ;
+                     DIP 1 { DIG 17 ; DROP 1 } ;
+                     DUG 17 ;
+                     DROP 2 ;
+                     PAIR 15 ;
+                     SWAP ;
+                     PAIR } } } ;
+         DIP 1 { DROP 1 } } ;
+  view "get_token_metadata"
+       nat
+       (option (pair nat (map string bytes)))
+       { UNPAIR ;
+         DIP 1 { CDR ; CDR ; CDR ; CDR ; CDR ; UNPAIR ; SWAP ; DROP 1 } ;
+         UNIT ;
+         DUP 3 ;
+         DUP 3 ;
+         GET ;
+         SWAP ;
+         DROP 1 ;
+         DIP 1 { DROP 2 } } ;
+  view "get_ledger"
+       (pair address nat)
+       nat
+       { UNPAIR ;
+         DIP 1 { CDR ; CDR ; CDR ; CDR ; CDR ; CDR ; UNPAIR ; SWAP ; DROP 1 } ;
+         UNIT ;
+         DUP 3 ;
+         DUP 3 ;
+         GET ;
+         IF_NONE { PUSH nat 0 } {} ;
+         SWAP ;
+         DROP 1 ;
+         DIP 1 { DROP 2 } } }

@@ -1,0 +1,10 @@
+{
+  "symbol": "VEUR",
+  "name": "VNX Euro",
+  "decimals": 18,
+  "description": "VNX Euro (VEUR) is a multichain token referencing Euro from a token generator licensed under the Blockchain act in Liechtenstein.",
+  "thumbnailUri": "https://ipfs.io/ipfs/Qmdtg7urymiLJSGn4FiYnxv9Strdg26T3qF8KRdBUSP88G/veur256x256.png",
+  "isTransferable": true,
+  "isBooleanAmount": false
+}
+

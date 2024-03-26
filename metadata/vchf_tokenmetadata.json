@@ -1,0 +1,10 @@
+{
+  "symbol": "VCHF",
+  "name": "VNX Swiss Franc",
+  "decimals": 18,
+  "description": "VNX Franc (VCHF) is a multichain token referencing Swiss Franc from a token generator licensed under the Blockchain act in Liechtenstein.",
+  "thumbnailUri": "https://ipfs.io/ipfs/Qmdtg7urymiLJSGn4FiYnxv9Strdg26T3qF8KRdBUSP88G/vchf256x256.png",
+  "isTransferable": true,
+  "isBooleanAmount": false
+}
+
